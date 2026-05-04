@@ -30,6 +30,7 @@ on:
         description: Version override (SETUPTOOLS_SCM_PRETEND_VERSION_FOR_VAPOURSYNTH_DFTTEST2_CPU)
         type: string
         required: false
+    merge_group:
 
 jobs:
   build-wheels:

@@ -48,6 +48,7 @@ on:
         options:
           - windows-2025-vs2026
           - windows-2025
+    merge_group:
 
 env:
   CUDA_LINUX: ${{ inputs.cuda-linux || '13.0' }}

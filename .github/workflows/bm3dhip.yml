@@ -55,6 +55,7 @@ on:
           - windows-2025-vs2026
           - windows-2025
           - windows-2022
+    merge_group:
 
 env:
   HIP_LINUX: ${{ inputs.hip-linux || '7.0' }}

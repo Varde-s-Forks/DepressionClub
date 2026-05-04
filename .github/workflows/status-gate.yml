@@ -20,7 +20,8 @@ permissions:
 
 jobs:
   gate:
-    if: github.actor == 'renovate[bot]'
+    # if: github.actor == 'renovate[bot]'
+    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Checkout scripts
