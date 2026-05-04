@@ -60,7 +60,7 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Publish distributions
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
           packages-dir: ${{ inputs.packages-dir }}
           repository-url: ${{ inputs.repository-url }}
