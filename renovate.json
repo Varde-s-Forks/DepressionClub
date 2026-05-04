@@ -1,0 +1,25 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices",
+    ":automergeMinor",
+    ":automergePr",
+    ":automergeRequireAllStatusChecks",
+    ":disableDependencyDashboard",
+    ":disableRateLimiting",
+    ":semanticCommits",
+    ":semanticCommitScopeDisabled",
+    ":semanticCommitTypeAll(deps)"
+  ],
+  "platformAutomerge": true,
+  "packageRules": [
+    {
+      "matchManagers": ["github-actions"],
+      "extends": [":semanticCommitTypeAll(ci)"]
+    },
+    {
+      "matchUpdateTypes": ["pin", "digest", "pinDigest"],
+      "automerge": true
+    }
+  ]
+}
