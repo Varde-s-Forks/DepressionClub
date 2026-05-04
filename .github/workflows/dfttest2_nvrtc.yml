@@ -2,6 +2,8 @@ name: DFTTEST2_NVRTC
 
 on:
   push:
+    branches:
+      - master
     paths:
       - dfttest2/dfttest2_nvrtc/**
       - .github/workflows/dfttest2_nvrtc.yml

@@ -2,6 +2,8 @@ name: BM3DHIP
 
 on:
   push:
+    branches:
+      - master
     paths:
       - bm3dcuda/bm3dhip/**
       - .github/workflows/bm3dhip.yml

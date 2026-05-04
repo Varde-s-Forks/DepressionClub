@@ -2,6 +2,8 @@ name: DFTTEST2_CPU
 
 on:
   push:
+    branches:
+      - master
     paths:
       - dfttest2/dfttest2_cpu/**
       - .github/workflows/dfttest2_cpu.yml

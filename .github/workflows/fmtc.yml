@@ -2,6 +2,8 @@ name: FMTC
 
 on:
   push:
+    branches:
+      - master
     paths:
       - fmtc/**
       - .github/workflows/fmtc.yml

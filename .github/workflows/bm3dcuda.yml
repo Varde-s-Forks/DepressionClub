@@ -2,6 +2,8 @@ name: BM3DCUDA
 
 on:
   push:
+    branches:
+      - master
     paths:
       - bm3dcuda/bm3dcuda/**
       - .github/workflows/bm3dcuda.yml
