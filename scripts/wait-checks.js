@@ -9,7 +9,7 @@
 module.exports = async ({ github, context, core }) => {
   const pr = context.payload.pull_request;
   const ref = pr.head.sha;
-  const gateName = context.workflow;
+  const gateName = context.job;
 
   const POLL_INTERVAL_MS = 15_000;
   const TIMEOUT_MS = 30 * 60 * 1000;
