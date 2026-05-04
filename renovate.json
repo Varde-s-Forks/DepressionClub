@@ -12,6 +12,7 @@
     ":semanticCommitTypeAll(deps)"
   ],
   "platformAutomerge": true,
+  "submodules": true,
   "packageRules": [
     {
       "matchManagers": ["github-actions"],
