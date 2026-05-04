@@ -13,6 +13,10 @@ concurrency:
   group: github-pages
   cancel-in-progress: false
 
+env:
+  COLUMNS: 160
+  FORCE_COLOR: true
+
 jobs:
   build-index:
     name: Build index
