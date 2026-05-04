@@ -8,11 +8,17 @@
  */
 module.exports = async ({ github, context, core }) => {
   const pr = context.payload.pull_request;
-  const ref = pr.head.sha;
   const gateName = context.job;
 
+  if (!pr) {
+    core.setFailed("No pull request found");
+    return;
+  }
+
+  const ref = pr.head.sha;
+
   const POLL_INTERVAL_MS = 15_000;
-  const TIMEOUT_MS = 30 * 60 * 1000;
+  const TIMEOUT_MS = 60 * 60 * 1000;
   const deadline = Date.now() + TIMEOUT_MS;
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -41,7 +47,7 @@ module.exports = async ({ github, context, core }) => {
   while (true) {
     const now = Date.now();
     if (now > deadline) {
-      core.setFailed("Timed out waiting for checks to complete (30 min).");
+      core.setFailed("Timed out waiting for checks to complete (60 min).");
       break;
     }
 
@@ -52,12 +58,14 @@ module.exports = async ({ github, context, core }) => {
     if (checks.length === 0) {
       if (now - startTime > INITIAL_WAIT_MS) {
         core.info(
-          "No other checks started after 2 minutes. Assuming no CI needed for this PR.",
+          `No other checks started after 2 minutes. 
+          Assuming no CI needed for this PR.`,
         );
         break;
       }
       core.info(
-        `No other checks found yet. Waiting up to ${Math.round((INITIAL_WAIT_MS - (now - startTime)) / 1000)}s more for checks to register...`,
+        `No other checks found yet. 
+        Waiting up to ${Math.round((INITIAL_WAIT_MS - (now - startTime)) / 1000)}s more for checks to register...`,
       );
       await sleep(POLL_INTERVAL_MS);
       continue;
@@ -81,7 +89,8 @@ module.exports = async ({ github, context, core }) => {
 
     if (failing.length > 0) {
       core.setFailed(
-        `Failing check(s): ${failing.map((c) => `${c.name} (${c.conclusion})`).join(", ")}`,
+        `Failing check(s): 
+        ${failing.map((c) => `${c.name} (${c.conclusion})`).join(", ")}`,
       );
     } else {
       core.info("All checks passed.");
