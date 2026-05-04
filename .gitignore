@@ -287,3 +287,7 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# Node.js
+node_modules/
+package-lock.json
