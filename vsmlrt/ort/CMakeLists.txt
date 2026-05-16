@@ -87,6 +87,24 @@ if(WIN32)
   endif()
 endif()
 
+# Copy CUDA provider shared libraries on Linux (mirrors the Windows DLL bundling above).
+# These are dlopen'd at runtime by libonnxruntime.so and invisible to auditwheel.
+if(UNIX AND NOT APPLE AND ENABLE_CUDA)
+  get_filename_component(_ROOT "${onnxruntime_DIR}/../../.." ABSOLUTE)
+  file(
+    GLOB _PROVIDER_LIBS
+    "${_ROOT}/lib/libonnxruntime_providers_cuda.so"
+    "${_ROOT}/lib/libonnxruntime_providers_shared.so"
+    "${_ROOT}/lib64/libonnxruntime_providers_cuda.so"
+    "${_ROOT}/lib64/libonnxruntime_providers_shared.so"
+  )
+  if(_PROVIDER_LIBS)
+    install(FILES ${_PROVIDER_LIBS} DESTINATION .)
+  else()
+    message(WARNING "Could not find ONNX Runtime CUDA provider libraries in ${_ROOT}")
+  endif()
+endif()
+
 if(ENABLE_COREML)
   target_compile_definitions(vsort PRIVATE ENABLE_COREML=1)
 endif()
