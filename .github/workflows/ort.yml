@@ -68,8 +68,8 @@ jobs:
             container: quay.io/pypa/manylinux_2_28_aarch64
           - name: Windows x64
             os: windows-2022
-          # - name: macOS ARM64
-          #   os: macos-15
+          - name: macOS ARM64
+            os: macos-15
 
     name: Build wheels on ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -112,6 +112,12 @@ jobs:
         with:
           onnxruntime-tag: ${{ env.ONNXRUNTIME_LINUX_TAG }}
 
+      - name: Build ONNX Runtime dependency (macOS)
+        if: runner.os == 'macOS'
+        uses: ./.github/actions/setup-onnxruntime-macos
+        with:
+          onnxruntime-tag: ${{ env.ONNXRUNTIME_LINUX_TAG }}
+
       - name: Get ONNX version from ONNX Runtime
         id: get-onnx-version
         shell: bash
@@ -132,11 +138,11 @@ jobs:
         with:
           onnx-tag: ${{ steps.get-onnx-version.outputs.version }}
 
-      # - name: Build ONNX dependency (macOS)
-      #   if: runner.os == 'macOS'
-      #   uses: ./.github/actions/setup-onnx-macos
-      #   with:
-      #     onnx-tag: ${{ env.ONNXRUNTIME_MACOS_TAG }}
+      - name: Build ONNX dependency (macOS)
+        if: runner.os == 'macOS'
+        uses: ./.github/actions/setup-onnx-macos
+        with:
+          onnx-tag: ${{ steps.get-onnx-version.outputs.version }}
 
       - name: Build wheel
         run: uv build --package vapoursynth-mlrt-${{ env.PACKAGE_NAME }}
@@ -151,13 +157,13 @@ jobs:
           rm dist/*.whl
           mv repaired_wheels/*.whl dist/
 
-      # - name: Repair wheel (macOS)
-      #   if: runner.os == 'macOS'
-      #   run: |
-      #     uvx --from delocate delocate-wheel -v dist/*.whl -w repaired_wheels
-      #     rm dist/*.whl
-      #     mv repaired_wheels/*.whl dist/
-      #     uvx --from delocate delocate-listdeps dist/*.whl
+      - name: Repair wheel (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          uvx --from delocate delocate-wheel -v dist/*.whl -w repaired_wheels
+          rm dist/*.whl
+          mv repaired_wheels/*.whl dist/
+          uvx --from delocate delocate-listdeps dist/*.whl
 
       - name: Upload wheel
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
