@@ -226,6 +226,33 @@ jobs:
           name: ${{ env.PACKAGE_NAME }}-sdist
           path: dist/*.tar.gz
 
+      - name: Generate metadata
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        run: |
+          VERSION=$(uvx pkginfo dist/*.tar.gz | grep "^version:" | cut -d' ' -f2)
+          cat << EOF > metadata.json
+          {
+            "package": "${{ env.PACKAGE_NAME }}",
+            "version": "$VERSION",
+            "onnx_windows": "${{ env.ONNX_WINDOWS_TAG }}",
+            "onnx_linux": "${{ env.ONNX_LINUX_TAG }}",
+            "onnx_macos": "${{ env.ONNX_MACOS_TAG }}",
+            "ncnn_windows": "${{ env.NCNN_WINDOWS_TAG }}",
+            "ncnn_linux": "${{ env.NCNN_LINUX_TAG }}",
+            "ncnn_macos": "${{ env.NCNN_MACOS_TAG }}",
+            "vulkan_windows": "${{ env.VULKAN_WINDOWS_VERSION }}",
+            "vulkan_linux": "${{ env.VULKAN_LINUX_VERSION }}",
+            "vulkan_macos": "${{ env.VULKAN_MACOS_VERSION }}"
+          }
+          EOF
+
+      - name: Upload metadata
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ env.PACKAGE_NAME }}-metadata
+          path: metadata.json
+
   trigger-publish:
     name: Trigger ${{ inputs.repository }} publish
     if: github.event_name == 'workflow_dispatch' && inputs.publish

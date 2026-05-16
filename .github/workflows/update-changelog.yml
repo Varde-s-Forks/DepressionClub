@@ -1,0 +1,45 @@
+name: Update Changelog
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  update:
+    name: Generate Changelog and README
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Download metadata artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p metadata_files
+
+          # Dynamically get all plugin workflows
+          WORKFLOWS=($(ls .github/workflows/*.yml | xargs -n 1 basename | grep -vE 'publish.yml|update-index.yml|upload-release.yml|lock-integrity.yml|status-gate.yml|update-changelog.yml'))
+
+          for WF in "${WORKFLOWS[@]}"; do
+            RUN_ID=$(gh run list --workflow "$WF" --status success --limit 1 --json databaseId -q '.[0].databaseId')
+
+            if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "null" ]; then
+              gh run download "$RUN_ID" --pattern "*-metadata" -D metadata_files/ || echo "No metadata found for $WF"
+            fi
+          done
+
+      - name: Merge JSONs and Generate Markdown
+        run: python scripts/generate_changelog.py
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md changelog.json || true
+          git commit -m "docs: auto-update changelog" || echo "No changes to commit"
+          git push
