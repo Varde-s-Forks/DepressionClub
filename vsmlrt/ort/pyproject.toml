@@ -1,0 +1,69 @@
+[build-system]
+requires = [
+    "scikit-build-core>=0.12",
+    "setuptools-scm",
+    "ninja ; sys_platform != 'win32'",
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "vapoursynth-mlrt-ort"
+dynamic = ["version", "readme"]
+description = "ONNX Runtime-based CPU/GPU inference plugin for VapourSynth"
+license = "GPL-3.0-or-later"
+license-files = ["vs-mlrt/LICENSE"]
+requires-python = ">=3.12"
+authors = [{ name = "AmusementClub" }]
+maintainers = [{ name = "Vardë", email = "ichunjo.le.terrible@gmail.com" }]
+dependencies = ["vapoursynth>=75"]
+
+[project.urls]
+"Source Code" = "https://github.com/AmusementClub/vs-mlrt"
+"Bug Tracker" = "https://github.com/AmusementClub/vs-mlrt/issues"
+"Repository" = "https://github.com/Jaded-Encoding-Thaumaturgy/vs-wheels"
+
+[tool.setuptools_scm]
+root = "vs-mlrt"
+local_scheme = "no-local-version"
+tag_regex = '^v(?P<version>\d+.*)$'
+
+[tool.scikit-build]
+metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
+metadata.readme.provider = "scikit_build_core.metadata.fancy_pypi_readme"
+wheel.exclude = ["*.lib"]
+wheel.install-dir = "vapoursynth/plugins/ort"
+wheel.expand-macos-universal-tags = true
+wheel.py-api = "py3"
+cmake.source-dir = "."
+cmake.args = ["-G", "Ninja"]
+cmake.define.CMAKE_BUILD_TYPE = "Release"
+ninja.make-fallback = false
+ninja.version = ">=1.5"
+
+[[tool.scikit-build.overrides]]
+if.platform-system = "win32"
+inherit.cmake.define = "append"
+cmake.define.CMAKE_MSVC_RUNTIME_LIBRARY = "MultiThreaded"
+cmake.define.ENABLE_DML = "ON"
+
+[[tool.scikit-build.overrides]]
+if.platform-system = "linux"
+if.platform-machine = "x86_64"
+inherit.cmake.define = "append"
+cmake.define.CMAKE_CXX_FLAGS = "-Wall -ffast-math -march=x86-64-v3"
+
+[[tool.scikit-build.overrides]]
+if.platform-system = "linux"
+if.platform-machine = "aarch64"
+inherit.cmake.define = "append"
+cmake.define.CMAKE_CXX_FLAGS = "-Wall -ffast-math -march=armv8.2-a"
+
+[[tool.scikit-build.overrides]]
+if.platform-system = "darwin"
+inherit.cmake.define = "append"
+cmake.define.CMAKE_CXX_FLAGS = "-Wall -ffast-math -mcpu=apple-m1"
+cmake.define.ENABLE_COREML = "ON"
+
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+fragments = [{ path = "README.md" }, { path = "vs-mlrt/vsort/README.md" }]

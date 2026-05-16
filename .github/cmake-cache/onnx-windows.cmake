@@ -1,3 +1,7 @@
 # Windows-specific ONNX cache variables.
 
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded" CACHE STRING "Static CRT (/MT)")
+
 set(ONNX_USE_MSVC_STATIC_RUNTIME 1 CACHE STRING "Static CRT (/MT)")
+set(protobuf_MSVC_STATIC_RUNTIME ON CACHE BOOL "")
+set(ABSL_MSVC_STATIC_RUNTIME ON CACHE BOOL "")

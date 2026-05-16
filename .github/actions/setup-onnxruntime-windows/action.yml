@@ -1,0 +1,203 @@
+name: Setup ONNX Runtime (Windows)
+description: Compiles ONNX Runtime from source on Windows
+inputs:
+  onnxruntime-tag:
+    description: The Git tag or commit hash of ONNX Runtime to build
+    required: true
+  build-cuda:
+    description: Whether to build with CUDA
+    required: true
+  cuda-version:
+    description: CUDA version for Windows (e.g. 13.0.1)
+    required: false
+  cudnn-version:
+    description: cuDNN version for Windows (e.g. 9.13.0.50)
+    required: false
+
+outputs:
+  dml-path:
+    description: Path to the restored Microsoft.AI.DirectML NuGet package
+    value: ${{ steps.emit-dml.outputs.dml-path }}
+
+runs:
+  using: composite
+  steps:
+    # Why is this needed?
+    - name: Fix PATH (Remove Strawberry Perl)
+      shell: pwsh
+      run: |
+        $newPath = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'Strawberry' }) -join ';'
+        "PATH=$newPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+    - name: Define ONNX Runtime cache key
+      id: cache-key
+      shell: pwsh
+      run: |
+        $cudaPart = if ("${{ inputs.build-cuda }}" -eq "true") { "cuda-${{ inputs.cuda-version }}" } else { "cpu" }
+        $hash = if ("${{ inputs.build-cuda }}" -eq "true") {
+          "${{ hashFiles(
+            '.github/cmake-cache/onnxruntime-base.cmake',
+            '.github/cmake-cache/onnxruntime-windows.cmake',
+            '.github/cmake-cache/onnxruntime-x64.cmake',
+            '.github/cmake-cache/onnxruntime-cuda.cmake'
+          ) }}"
+        } else {
+          "${{ hashFiles(
+            '.github/cmake-cache/onnxruntime-base.cmake',
+            '.github/cmake-cache/onnxruntime-windows.cmake',
+            '.github/cmake-cache/onnxruntime-x64.cmake'
+          ) }}"
+        }
+        "key=setup-onnxruntime-${{ runner.os }}-${{ inputs.onnxruntime-tag }}-$cudaPart-$hash" `
+          | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+    - name: Restore ONNX Runtime
+      id: cache-onnx
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      with:
+        path: onnxruntime-dist
+        key: ${{ steps.cache-key.outputs.key }}
+
+    # The ONNX Runtime build (dml.cmake) downloads its own ancient nuget.exe v5.3.0
+    # which has TLS reliability issues causing "Unexpected EOF" on large packages
+    # like DirectML (~200MB). Pre-restore the packages with a modern NuGet so the
+    # build's custom command finds its output files already present and skips the download.
+    - name: Setup NuGet
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      uses: nuget/setup-nuget@fd55a6f3b34392fa83fde1454582407d8c714123 # v4.0
+
+    - name: Setup CUDA
+      uses: ./.github/actions/setup-cuda-windows
+      if: inputs.build-cuda == 'true'
+      with:
+        cuda-version: ${{ inputs.cuda-version }}
+        cuda-components: >-
+          nvcc,
+          cudart,
+          cublas_dev,
+          cufft_dev,
+          curand_dev,
+          cusparse_dev,
+          cupti,
+          thrust,
+          nvtx,
+          crt,
+          nvptxcompiler,
+          nvvm
+        cache-key: ${{ matrix.os }}
+
+    - name: Parse CUDA Major Version
+      id: parse-cuda
+      if: inputs.build-cuda == 'true'
+      shell: pwsh
+      run: |
+        $fullVersion = "${{ inputs.cuda-version }}"
+        $majorVersion = $fullVersion.Split('.')[0]
+        echo "major=$majorVersion" >> $env:GITHUB_OUTPUT
+
+    - name: Setup cuDNN
+      if: inputs.build-cuda == 'true'
+      uses: ./.github/actions/setup-cudnn-windows
+      with:
+        cudnn-version: ${{ inputs.cudnn-version }}
+        cuda-version: ${{ steps.parse-cuda.outputs.major }}
+
+    # Always check out onnxruntime to get the correct commit hash of onnx
+    - name: Checkout ONNX Runtime
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      with:
+        repository: microsoft/onnxruntime
+        ref: ${{ inputs.onnxruntime-tag }}
+        path: onnxruntime
+        submodules: recursive
+
+    - name: Pre-restore DirectML NuGet packages
+      shell: pwsh
+      run: |
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+        $packagesConfig = Resolve-Path "onnxruntime/packages.config"
+        $nugetConfig    = Resolve-Path "onnxruntime/NuGet.config"
+        $packagesDir    = "$env:GITHUB_WORKSPACE/packages"
+
+        $maxRetries = 5
+        for ($i = 1; $i -le $maxRetries; $i++) {
+          Write-Host "NuGet restore attempt $i/$maxRetries..."
+          nuget restore $packagesConfig -PackagesDirectory $packagesDir -ConfigFile $nugetConfig
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "NuGet restore succeeded."
+            break
+          }
+          if ($i -lt $maxRetries) {
+            Write-Host "Attempt $i failed, retrying in 15s..."
+            Start-Sleep -Seconds 15
+            dotnet nuget locals all --clear
+          } else {
+            throw "NuGet restore failed after $maxRetries attempts."
+          }
+        }
+
+    - name: Configure ONNX Runtime
+      shell: pwsh
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: |
+        $cmakeArgs = @(
+          "-S", "onnxruntime/cmake",
+          "-B", "build_onnxruntime",
+          "-G", "Ninja",
+          "-Wno-dev",
+          "-LA",
+          "-C", "$env:GITHUB_WORKSPACE/.github/cmake-cache/onnxruntime-base.cmake"
+          "-C", "$env:GITHUB_WORKSPACE/.github/cmake-cache/onnxruntime-windows.cmake"
+          "-C", "$env:GITHUB_WORKSPACE/.github/cmake-cache/onnxruntime-x64.cmake"
+        )
+
+        if ("${{ inputs.build-cuda }}" -eq "true") {
+          $cmakeArgs += "-C", "$env:GITHUB_WORKSPACE/.github/cmake-cache/onnxruntime-cuda.cmake"
+          $cmakeArgs += "-D", "onnxruntime_CUDA_HOME=$env:CUDA_PATH"
+          $cmakeArgs += "-D", "onnxruntime_CUDNN_HOME=$env:CUDNN_HOME"
+          $cmakeArgs += "-D", "CMAKE_CUDA_COMPILER=$env:CUDA_PATH\bin\nvcc.exe"
+        } else {
+          $cmakeArgs += "-D", "onnxruntime_USE_CUDA=OFF"
+        }
+
+        cmake @cmakeArgs
+
+    - name: Build ONNX Runtime
+      shell: pwsh
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake --build build_onnxruntime
+
+    - name: Install ONNX runtime
+      shell: pwsh
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake --install build_onnxruntime --prefix onnxruntime-dist
+
+    - name: Save ONNX runtime
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      with:
+        path: onnxruntime-dist
+        key: ${{ steps.cache-key.outputs.key }}
+
+    - name: Configure ONNX Path
+      shell: pwsh
+      run: |
+        $onnxRuntimeRoot = (Resolve-Path "onnxruntime-dist").Path
+        "CMAKE_PREFIX_PATH=$onnxRuntimeRoot;$env:CMAKE_PREFIX_PATH".TrimEnd(';') | Out-File -FilePath $env:GITHUB_ENV -Append
+
+    - name: Emit DirectML path
+      id: emit-dml
+      shell: pwsh
+      run: |
+        $dmlCmakeContent = Get-Content -Raw -Path "onnxruntime/cmake/external/dml.cmake"
+        if ($dmlCmakeContent -match 'Microsoft\.AI\.DirectML\.([0-9.]+)') {
+          $dmlVersion = $Matches[1]
+        } else {
+          throw "Could not find the Microsoft.AI.DirectML version in dml.cmake"
+        }
+        $dmlPath = Join-Path $env:GITHUB_WORKSPACE "packages/Microsoft.AI.DirectML.$dmlVersion"
+        if (!(Test-Path $dmlPath)) {
+          throw "DirectML package not found at $dmlPath"
+        }
+        "dml-path=$dmlPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append

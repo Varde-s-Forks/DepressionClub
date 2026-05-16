@@ -1,0 +1,158 @@
+name: Setup ONNX Runtime (Linux)
+description: Compiles ONNX Runtime from source on Linux (RHEL/Manylinux)
+inputs:
+  onnxruntime-tag:
+    description: The Git tag or commit hash of ONNX Runtime to build
+    required: true
+  build-cuda:
+    description: Whether to build with CUDA
+    required: false
+    default: "false"
+  cuda-version:
+    description: CUDA version for Linux (e.g. 13.0)
+    required: false
+  cuda-repo:
+    description: CUDA repository path (e.g. rhel8/x86_64)
+    required: false
+    default: rhel8/x86_64
+  cudnn-version:
+    description: cuDNN version for Linux (e.g. 9.13.0.50)
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Define ONNX Runtime cache key
+      id: cache-key
+      shell: bash
+      run: |
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "x86_64" ]; then
+          ARCH_FILE=".github/cmake-cache/onnxruntime-x64.cmake"
+        elif [ "$ARCH" = "aarch64" ]; then
+          ARCH_FILE=".github/cmake-cache/onnxruntime-aarch64.cmake"
+        fi
+
+        if [ "${{ inputs.build-cuda }}" = "true" ]; then
+          CUDA_PART="cuda-${{ inputs.cuda-version }}"
+          HASH="${{ hashFiles(
+            '.github/cmake-cache/onnxruntime-base.cmake',
+            '.github/cmake-cache/onnxruntime-linux.cmake',
+            '.github/cmake-cache/onnxruntime-x64.cmake',
+            '.github/cmake-cache/onnxruntime-aarch64.cmake',
+            '.github/cmake-cache/onnxruntime-cuda.cmake'
+          ) }}"
+        else
+          CUDA_PART="cpu"
+          HASH="${{ hashFiles(
+            '.github/cmake-cache/onnxruntime-base.cmake',
+            '.github/cmake-cache/onnxruntime-linux.cmake',
+            '.github/cmake-cache/onnxruntime-x64.cmake',
+            '.github/cmake-cache/onnxruntime-aarch64.cmake'
+          ) }}"
+        fi
+        echo "key=setup-onnxruntime-${RUNNER_OS}-${ARCH}-${{ inputs.onnxruntime-tag }}-${CUDA_PART}-${HASH}" >> $GITHUB_OUTPUT
+        echo "arch_file=$ARCH_FILE" >> $GITHUB_OUTPUT
+
+    - name: Restore ONNX Runtime
+      id: cache-onnx
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      with:
+        path: onnxruntime-dist
+        key: ${{ steps.cache-key.outputs.key }}
+
+    - name: Install dependencies
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      shell: bash
+      run: dnf install -y glibc-devel
+
+    - name: Setup CUDA
+      if: inputs.build-cuda == 'true'
+      uses: ./.github/actions/setup-cuda-linux
+      with:
+        cuda-version: ${{ inputs.cuda-version }}
+        cuda-repo: ${{ inputs.cuda-repo }}
+        # cuda-nvvm for CUDA 12, libnvvm for CUDA 13.
+        cuda-components: >-
+          cuda-nvcc,
+          cuda-cudart-devel,
+          libcublas-devel,
+          libcufft-devel,
+          libcurand-devel,
+          libcusparse-devel,
+          cuda-cupti,
+          cuda-nvtx,
+          cuda-crt,
+          libnvptxcompiler,
+          libnvvm
+
+    - name: Install cuDNN
+      if: inputs.build-cuda == 'true'
+      uses: ./.github/actions/setup-cudnn-linux
+      with:
+        cudnn-version: ${{ inputs.cudnn-version }}
+        cuda-version: ${{ inputs.cuda-version }}
+
+    # Always check out onnxruntime to get the correct commit hash of onnx
+    - name: Checkout ONNX Runtime
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      with:
+        repository: microsoft/onnxruntime
+        ref: ${{ inputs.onnxruntime-tag }}
+        path: onnxruntime
+        submodules: recursive
+
+    - name: Configure ONNX Runtime
+      shell: bash
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: |
+        CMAKE_ARGS=(
+          -S onnxruntime/cmake
+          -B build_onnxruntime
+          -G Ninja
+          -Wno-dev
+          -LA
+          -C "$GITHUB_WORKSPACE/.github/cmake-cache/onnxruntime-base.cmake"
+          -C "$GITHUB_WORKSPACE/.github/cmake-cache/onnxruntime-linux.cmake"
+        )
+
+        if [ -n "${{ steps.cache-key.outputs.arch_file }}" ]; then
+          CMAKE_ARGS+=(-C "$GITHUB_WORKSPACE/${{ steps.cache-key.outputs.arch_file }}")
+        fi
+
+        if [ "${{ inputs.build-cuda }}" = "true" ]; then
+          CMAKE_ARGS+=(
+            -C "$GITHUB_WORKSPACE/.github/cmake-cache/onnxruntime-cuda.cmake"
+            -D onnxruntime_CUDA_HOME="$CUDA_PATH"
+            -D onnxruntime_CUDNN_HOME="$CUDNN_HOME"
+            -D CMAKE_CUDA_COMPILER="$CUDA_PATH/bin/nvcc"
+          )
+        else
+          CMAKE_ARGS+=(-D onnxruntime_USE_CUDA=OFF)
+        fi
+
+        cmake "${CMAKE_ARGS[@]}"
+
+    - name: Build ONNX Runtime
+      shell: bash
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake --build build_onnxruntime -j 1
+
+    - name: Install ONNX Runtime
+      shell: bash
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake --install build_onnxruntime --prefix onnxruntime-dist
+
+    - name: Save ONNX Runtime
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      with:
+        path: onnxruntime-dist
+        key: ${{ steps.cache-key.outputs.key }}
+
+    - name: Configure ONNX Path
+      shell: bash
+      run: |
+        onnxRuntimeRoot=$(realpath onnxruntime-dist)
+        echo "CMAKE_PREFIX_PATH=$onnxRuntimeRoot${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=$onnxRuntimeRoot/lib:$onnxRuntimeRoot/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> $GITHUB_ENV
