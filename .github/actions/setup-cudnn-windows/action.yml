@@ -1,0 +1,53 @@
+name: Setup cuDNN (Windows)
+description: Download and configure cuDNN
+inputs:
+  cudnn-version:
+    description: cuDNN version for Windows (e.g. 9.13.0.50)
+    required: true
+  cuda-version:
+    description: CUDA major version (e.g. 13)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Define cache key
+      id: cache-key
+      shell: bash
+      run: |
+        echo "key=${{ format(
+          'setup-cudnn-{0}-{1}-{2}-{3}',
+          runner.os,
+          runner.arch,
+          inputs.cudnn-version,
+          inputs.cuda-version
+        ) }}" >> $GITHUB_OUTPUT
+
+    - name: Restore cuDNN
+      id: cache-cudnn
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      with:
+        path: cudnn-windows-x86_64-${{ inputs.cudnn-version }}_cuda${{ inputs.cuda-version }}-archive
+        key: ${{ steps.cache-key.outputs.key }}
+
+    - name: Download cuDNN
+      if: steps.cache-cudnn.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        curl.exe -LJ -o cudnn.zip `
+          https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-${{ inputs.cudnn-version }}_cuda${{ inputs.cuda-version }}-archive.zip
+        Expand-Archive -LiteralPath cudnn.zip -DestinationPath . -Force
+
+    - name: Save cuDNN
+      if: steps.cache-cudnn.outputs.cache-hit != 'true'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      with:
+        path: cudnn-windows-x86_64-${{ inputs.cudnn-version }}_cuda${{ inputs.cuda-version }}-archive
+        key: ${{ steps.cache-key.outputs.key }}
+
+    - name: Configure cuDNN Path
+      shell: pwsh
+      run: |
+        $cudnnPath = (Get-ChildItem -Path "cudnn-windows-x86_64-*" | Select-Object -First 1).FullName
+        echo "CUDNN_HOME=$cudnnPath" >> $env:GITHUB_ENV
+        echo "CUDNN_PATH=$cudnnPath" >> $env:GITHUB_ENV

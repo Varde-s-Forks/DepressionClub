@@ -1,0 +1,8 @@
+# Base ONNX Runtime cache variables shared across all platforms.
+
+set(CMAKE_BUILD_TYPE Release CACHE STRING "")
+
+# Build options
+set(onnxruntime_BUILD_UNIT_TESTS OFF CACHE BOOL "")
+set(onnxruntime_BUILD_SHARED_LIB ON CACHE BOOL "")
+set(onnxruntime_ENABLE_LTO ON CACHE BOOL "")

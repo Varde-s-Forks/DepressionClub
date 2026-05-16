@@ -49,6 +49,10 @@
       "path": "vsmlrt/ncnn",
     },
     {
+      "name": "VSMLRT ORT",
+      "path": "vsmlrt/ort",
+    },
+    {
       "name": "vs-wheels (Root)",
       "path": ".",
     },

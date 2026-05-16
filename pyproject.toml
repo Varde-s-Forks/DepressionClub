@@ -19,6 +19,7 @@ dev = [
     "niquests>=3.18.7",
     "rich>=15.0.0",
     "ruff>=0.15.12",
+    "toml-rs>=0.3.13",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -38,6 +39,7 @@ members = [
     "dfttest2/dfttest2_hip",
     "dfttest2/dfttest2_hiprtc",
     "vsmlrt/ncnn",
+    "vsmlrt/ort",
 ]
 
 [tool.mypy]

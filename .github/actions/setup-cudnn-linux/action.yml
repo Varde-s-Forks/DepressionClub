@@ -1,0 +1,68 @@
+name: Setup cuDNN (Linux)
+description: Download and configure cuDNN for Linux
+inputs:
+  cudnn-version:
+    description: cuDNN version (e.g. 9.13.0.50)
+    required: true
+  cuda-version:
+    description: CUDA major version (e.g. 12 or 13)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set Variables
+      id: vars
+      shell: bash
+      run: |
+        if [ "${{ runner.arch }}" = "ARM64" ]; then
+          echo "arch=sbsa" >> $GITHUB_OUTPUT
+        else
+          echo "arch=x86_64" >> $GITHUB_OUTPUT
+        fi
+        CUDA_VER="${{ inputs.cuda-version }}"
+        echo "cuda_major=${CUDA_VER%%.*}" >> $GITHUB_OUTPUT
+
+    - name: Define cache key
+      id: cache-key
+      shell: bash
+      run: |
+        echo "key=setup-cudnn-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cudnn-version }}-cuda${{ steps.vars.outputs.cuda_major }}" >> $GITHUB_OUTPUT
+
+    - name: Restore cuDNN
+      id: cache-cudnn
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      with:
+        path: cudnn-linux-${{ steps.vars.outputs.arch }}-${{ inputs.cudnn-version }}_cuda${{ steps.vars.outputs.cuda_major }}-archive
+        key: ${{ steps.cache-key.outputs.key }}
+
+    - name: Download cuDNN
+      if: steps.cache-cudnn.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        ARCH="${{ steps.vars.outputs.arch }}"
+        VERSION="${{ inputs.cudnn-version }}"
+        CUDA_MAJOR="${{ steps.vars.outputs.cuda_major }}"
+        FILENAME="cudnn-linux-${ARCH}-${VERSION}_cuda${CUDA_MAJOR}-archive.tar.xz"
+        URL="https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-${ARCH}/${FILENAME}"
+
+        echo "Downloading $URL"
+        curl -sSL -o cudnn.tar.xz "$URL"
+        tar -xf cudnn.tar.xz
+        rm cudnn.tar.xz
+
+    - name: Save cuDNN
+      if: steps.cache-cudnn.outputs.cache-hit != 'true'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      with:
+        path: cudnn-linux-${{ steps.vars.outputs.arch }}-${{ inputs.cudnn-version }}_cuda${{ steps.vars.outputs.cuda_major }}-archive
+        key: ${{ steps.cache-key.outputs.key }}
+
+    - name: Configure cuDNN Path
+      shell: bash
+      run: |
+        CUDNN_DIR=$(ls -d cudnn-linux-${{ steps.vars.outputs.arch }}-*-archive)
+        CUDNN_PATH=$(realpath "$CUDNN_DIR")
+        echo "CUDNN_HOME=$CUDNN_PATH" >> $GITHUB_ENV
+        echo "CUDNN_PATH=$CUDNN_PATH" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=$CUDNN_PATH/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" >> $GITHUB_ENV
