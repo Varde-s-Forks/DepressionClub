@@ -6,10 +6,37 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# TensorRT library suffix options
+# === TensorRT Version Detection ===
+find_path(
+  TENSORRT_INCLUDE_DIR
+  NvInferVersion.h
+  HINTS "${TENSORRT_HOME}/include" "$ENV{TENSORRT_HOME}/include"
+  PATHS "/usr/include" "/usr/local/include"
+)
+
+if(TENSORRT_INCLUDE_DIR)
+  get_filename_component(_TENSORRT_HOME "${TENSORRT_INCLUDE_DIR}" DIRECTORY)
+  file(READ "${TENSORRT_INCLUDE_DIR}/NvInferVersion.h" _VERSION_CONTENT)
+  if(_VERSION_CONTENT MATCHES "#define TRT_MAJOR_ENTERPRISE ([0-9]+)")
+    set(TRT_MAJOR "${CMAKE_MATCH_1}")
+  endif()
+  if(_VERSION_CONTENT MATCHES "#define TRT_MINOR_ENTERPRISE ([0-9]+)")
+    set(TRT_MINOR "${CMAKE_MATCH_1}")
+  endif()
+endif()
+
+if(NOT DEFINED TRT_MAJOR OR NOT DEFINED TRT_MINOR)
+  message(
+    FATAL_ERROR
+    "Could not find or parse TensorRT version from NvInferVersion.h (TENSORRT_HOME: ${TENSORRT_HOME}, ENV: $ENV{TENSORRT_HOME})"
+  )
+endif()
+
+message(STATUS "TensorRT Version inferred: ${TRT_MAJOR}.${TRT_MINOR}")
+
 set(TENSORRT_LIBRARY_SUFFIX "" CACHE STRING "TensorRT library suffix")
 if(WIN32 AND NOT TENSORRT_LIBRARY_SUFFIX)
-  set(TENSORRT_LIBRARY_SUFFIX "_10")
+  set(TENSORRT_LIBRARY_SUFFIX "_${TRT_MAJOR}")
 endif()
 
 set(

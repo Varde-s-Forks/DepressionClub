@@ -33,17 +33,21 @@ runs:
       if: steps.cache-trt.outputs.cache-hit != 'true'
       shell: pwsh
       run: |
-        $parts = "${{ inputs.tensorrt-version }}".Split(".")
-        $fullTrtVer = "$($parts[0]).$($parts[1]).$($parts[2]).$($parts[3])"
-        $shortTrtVer = "$($parts[0]).$($parts[1]).$($parts[2])"
-        $parts = "${{ inputs.cuda-version }}".Split(".")
-        $cudaVer = "$($parts[0]).$($parts[1])"
+        $parts_trt = "${{ inputs.tensorrt-version }}".Split(".")
+        $fullTrtVer = "$($parts_trt[0]).$($parts_trt[1]).$($parts_trt[2]).$($parts_trt[3])"
+        $shortTrtVer = "$($parts_trt[0]).$($parts_trt[1]).$($parts_trt[2])"
+        $parts_cuda = "${{ inputs.cuda-version }}".Split(".")
+        $cudaVer = "$($parts_cuda[0]).$($parts_cuda[1])"
 
         Write-Host "Full TRT version:" $fullTrtVer
         Write-Host "Short TRT version:" $shortTrtVer
         Write-Host "CUDA version:" $cudaVer
 
-        $url = "https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/$shortTrtVer/zip/TensorRT-$fullTrtVer.Windows.amd64.cuda-$cudaVer.zip"
+        if ($parts_trt[0] -ge 11) {
+          $url = "https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/$shortTrtVer/zip/TensorRT-Enterprise-$fullTrtVer-Windows-amd64-cuda-$cudaVer-Release-external.zip"
+        } else {
+          $url = "https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/$shortTrtVer/zip/TensorRT-$fullTrtVer.Windows.amd64.cuda-$cudaVer.zip"
+        }
         Write-Host "Downloading TensorRT from $url"
         curl.exe -L -o trt.zip $url
 

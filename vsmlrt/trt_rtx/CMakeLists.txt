@@ -25,19 +25,19 @@ if(TENSORRT_RTX_INCLUDE_DIR)
   endif()
 endif()
 
-if(NOT TRT_MAJOR_RTX OR NOT TRT_MINOR_RTX)
+if(NOT DEFINED TRT_MAJOR_RTX OR NOT DEFINED TRT_MINOR_RTX)
   message(
     FATAL_ERROR
     "Could not find or parse TensorRT RTX version from NvInferVersion.h (TENSORRT_RTX_HOME: ${TENSORRT_RTX_HOME}, ENV: $ENV{TENSORRT_RTX_HOME})"
   )
 endif()
 
+message(STATUS "TensorRT RTX Version inferred: ${TRT_MAJOR_RTX}.${TRT_MINOR_RTX}")
+
 set(TENSORRT_RTX_LIBRARY_SUFFIX "" CACHE STRING "TensorRT library suffix")
 if(WIN32 AND NOT TENSORRT_RTX_LIBRARY_SUFFIX)
   set(TENSORRT_RTX_LIBRARY_SUFFIX "_${TRT_MAJOR_RTX}_${TRT_MINOR_RTX}")
 endif()
-
-message(STATUS "TensorRT RTX Version inferred: ${TRT_MAJOR_RTX}.${TRT_MINOR_RTX}")
 
 set(
   VAPOURSYNTH_INCLUDE_DIRECTORY
