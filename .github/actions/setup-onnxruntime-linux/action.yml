@@ -73,7 +73,14 @@ runs:
     - name: Install dependencies
       if: steps.cache-onnx.outputs.cache-hit != 'true'
       shell: bash
-      run: dnf install -y glibc-devel
+      run: |
+        dnf install -y glibc-devel gcc-toolset-15
+        source /opt/rh/gcc-toolset-15/enable
+        GCC_ROOT="/opt/rh/gcc-toolset-15/root/usr"
+        echo "CC=$GCC_ROOT/bin/gcc" >> $GITHUB_ENV
+        echo "CXX=$GCC_ROOT/bin/g++" >> $GITHUB_ENV
+        echo "$GCC_ROOT/bin" >> $GITHUB_PATH
+        echo "LD_LIBRARY_PATH=$GCC_ROOT/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> $GITHUB_ENV
 
     - name: Setup CUDA
       if: inputs.build-cuda == 'true'
