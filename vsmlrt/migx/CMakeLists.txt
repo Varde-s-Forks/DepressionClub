@@ -42,7 +42,20 @@ if(DEFINED ENV{MIGRAPHX_DIR})
   file(TO_CMAKE_PATH "$ENV{MIGRAPHX_DIR}" migraphx_DIR)
 endif()
 
-find_package(migraphx REQUIRED CONFIG)
+find_package(migraphx CONFIG QUIET)
+if(NOT TARGET migraphx::c)
+  find_path(MIGRAPHX_INCLUDE_DIR NAMES migraphx/migraphx.h)
+  find_library(MIGRAPHX_C_LIB NAMES migraphx_c)
+  if(MIGRAPHX_INCLUDE_DIR AND MIGRAPHX_C_LIB)
+    add_library(migraphx::c SHARED IMPORTED)
+    set_target_properties(migraphx::c PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${MIGRAPHX_INCLUDE_DIR}"
+      IMPORTED_LOCATION "${MIGRAPHX_C_LIB}"
+    )
+  else()
+    message(FATAL_ERROR "MIGraphX library (migraphx_c) or headers (migraphx/migraphx.h) not found.")
+  endif()
+endif()
 find_package(hip REQUIRED CONFIG)
 
 # === Target Definition & Configuration ===
