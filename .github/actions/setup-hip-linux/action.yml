@@ -1,98 +1,63 @@
 name: "Setup HIP (Linux)"
-description: "Installs and configures the AMD ROCm Core SDK for Linux (RHEL/Manylinux)"
+description: "Downloads and configures the AMD ROCm TheRock Core SDK and optional MIGraphX for Linux (Manylinux / RHEL)"
 inputs:
   hip-version:
-    description: "ROCm version (e.g., 7.14.0)"
+    description: "ROCm TheRock SDK version (e.g., 10.0.0)"
     required: true
-  hip-components:
-    description: "Comma-separated list of additional system packages to install"
-    required: true
-  rocm-components:
-    description: "Comma-separated ROCm development component names (e.g., runtime-devel,llvm,fft-devel)"
-    required: true
+  migraphx-version:
+    description: "MIGraphX version (e.g., 2.17.0)"
+    required: false
+    default: "2.17.0"
   install-migraphx:
-    description: "Whether to install MIGraphX from the ROCm Extras repository"
+    description: "Whether to install MIGraphX"
     required: false
     default: "false"
 
 runs:
-  using: "composite"
+  using: composite
   steps:
-    - name: Install ROCm Core SDK
+    - name: Download and Extract ROCm TheRock SDK
       shell: bash
       run: |
-        dnf install -y dnf-plugins-core
-        tee /etc/yum.repos.d/rocm.repo > /dev/null <<EOF
-        [rocm]
-        name=ROCm ${{ inputs.hip-version }}
-        baseurl=https://repo.amd.com/rocm/packages-multi-arch/rhel8/x86_64
-        enabled=1
-        gpgcheck=1
-        gpgkey=https://repo.amd.com/rocm/packages-multi-arch/gpg/rocm.gpg
-        priority=50
-        EOF
-        dnf clean all
+        archive="therock-dist-linux-multiarch-${{ inputs.hip-version }}.tar.gz"
+        mkdir -p /opt/rocm
+        curl -fsSL --retry 3 "https://stable.repo.amd.com/rocm/core/tarball/$archive" | tar -xzf - -C /opt/rocm --strip-components=1
 
-        rocm_series="${{ inputs.hip-version }}"
-        rocm_series="${rocm_series%.*}"
-        IFS=',' read -r -a rocm_components <<< "${{ inputs.rocm-components }}"
-        rocm_packages=()
-        for component in "${rocm_components[@]}"; do
-          rocm_packages+=("amdrocm-${component}${rocm_series}")
-        done
-        dnf -y install "${rocm_packages[@]}" $(echo "${{ inputs.hip-components }}" | tr ',' ' ')
-
-        if [ "${{ inputs.install-migraphx }}" = "true" ]; then
-          tee /etc/yum.repos.d/rocm-migraphx.repo > /dev/null <<'EOF'
-        [rocm-migraphx]
-        name=ROCm Extras - MIGraphX
-        baseurl=https://rocm.frameworks.amd.com/rpm-multi-arch/amdrocm-migraphx/
-        enabled=1
-        gpgcheck=1
-        gpgkey=https://repo.amd.com/rocm/packages-multi-arch/gpg/rocm.gpg
-        priority=50
-        EOF
-          dnf clean all
-          dnf -y install amdrocm-migraphx amdrocm-migraphx-devel
-        fi
+    - name: Download and Extract MIGraphX SDK
+      if: inputs.install-migraphx == 'true'
+      shell: bash
+      run: |
+        migraphx_archive="migraphx-${{ inputs.migraphx-version }}%2Brocm${{ inputs.hip-version }}.tar.gz"
+        mkdir -p /opt/migraphx
+        curl -fsSL --retry 3 "https://stable.repo.amd.com/rocm/migraphx/tarball/$migraphx_archive" | tar -xzf - -C /opt/migraphx --strip-components=1
 
     - name: Configure HIP Path
       shell: bash
       run: |
-        rocm_series="${{ inputs.hip-version }}"
-        rocm_series="${rocm_series%.*}"
-        AMDCLANG_PATH=$(rpm -ql "amdrocm-llvm${rocm_series}" | grep '/bin/amdclang$' | head -n 1)
-        if [ -z "$AMDCLANG_PATH" ]; then
-          echo "Unable to locate amdclang from amdrocm-llvm${rocm_series}" >&2
-          exit 1
-        fi
-
-        LLVM_BIN_DIR=$(dirname "$AMDCLANG_PATH")
-        if [ "$(basename "$(dirname "$LLVM_BIN_DIR")")" = "llvm" ]; then
-          ROCM_PATH=$(dirname "$(dirname "$(dirname "$LLVM_BIN_DIR")")")
-        else
-          ROCM_PATH=$(dirname "$LLVM_BIN_DIR")
-        fi
-        ROCM_EXTRAS_PATH="$(dirname "$ROCM_PATH")/extras-7"
-        MIGRAPHX_DIR=""
-        if rpm -q amdrocm-migraphx-devel > /dev/null 2>&1; then
-          MIGRAPHX_CONFIG=$(rpm -ql amdrocm-migraphx-devel | grep '/migraphx-config.cmake$' | head -n 1)
-          [ -n "$MIGRAPHX_CONFIG" ] && MIGRAPHX_DIR=$(dirname "$MIGRAPHX_CONFIG")
-        fi
-
         # GCC Toolset 14 is required for C++20 on Manylinux 2.28.
         source /opt/rh/gcc-toolset-14/enable
         GCC_ROOT=/opt/rh/gcc-toolset-14/root/usr
         GCC_VER=$(gcc -dumpversion)
         GCC_TRIPLET=$(gcc -dumpmachine)
 
-        echo "$ROCM_EXTRAS_PATH/bin:$ROCM_PATH/bin:$LLVM_BIN_DIR" >> "$GITHUB_PATH"
+        ROCM_PATH=/opt/rocm
+        LLVM_ROOT="$ROCM_PATH/lib/llvm"
+        LLVM_BIN_DIR="$LLVM_ROOT/bin"
+        AMDCLANG_PATH="$LLVM_BIN_DIR/amdclang"
+        MIGRAPHX_DIR="/opt/migraphx"
+
+        echo "$ROCM_PATH/bin:$LLVM_BIN_DIR" >> "$GITHUB_PATH"
+        if [ "${{ inputs.install-migraphx }}" = "true" ]; then
+          echo "$MIGRAPHX_DIR/bin" >> "$GITHUB_PATH"
+        fi
 
         {
           echo "ROCM_PATH=$ROCM_PATH"
-          echo "ROCM_EXTRAS_PATH=$ROCM_EXTRAS_PATH"
-          [ -n "$MIGRAPHX_DIR" ] && echo "MIGRAPHX_DIR=$MIGRAPHX_DIR"
           echo "HIP_PATH=$ROCM_PATH"
+          echo "HIP_DIR=$ROCM_PATH/lib/cmake/hip"
+          echo "HIP_DEVICE_LIB_PATH=$LLVM_ROOT/amdgcn/bitcode"
+          echo "HIP_PLATFORM=amd"
+          echo "LLVM_PATH=$LLVM_ROOT"
           echo "CC=$AMDCLANG_PATH"
           echo "CXX=$LLVM_BIN_DIR/amdclang++"
           echo "CFLAGS=--gcc-toolchain=$GCC_ROOT"
@@ -100,6 +65,14 @@ runs:
           echo "LDFLAGS=--gcc-toolchain=$GCC_ROOT"
           echo "CPLUS_INCLUDE_PATH=$GCC_ROOT/include/c++/$GCC_VER:$GCC_ROOT/include/c++/$GCC_VER/$GCC_TRIPLET${CPLUS_INCLUDE_PATH:+:${CPLUS_INCLUDE_PATH}}"
           echo "LIBRARY_PATH=$GCC_ROOT/lib/gcc/$GCC_TRIPLET/$GCC_VER:/usr/lib64${LIBRARY_PATH:+:${LIBRARY_PATH}}"
-          echo "CMAKE_PREFIX_PATH=$ROCM_PATH:$ROCM_EXTRAS_PATH"
-          echo "LD_LIBRARY_PATH=$ROCM_EXTRAS_PATH/lib:$ROCM_PATH/lib:$ROCM_PATH/lib64:$GCC_ROOT/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+          if [ "${{ inputs.install-migraphx }}" = "true" ]; then
+            echo "MIGRAPHX_DIR=$MIGRAPHX_DIR/lib/cmake/migraphx"
+            echo "MIGRAPHX_DIR=$MIGRAPHX_DIR"
+            echo "ROCM_EXTRAS_PATH=$MIGRAPHX_DIR"
+            echo "CMAKE_PREFIX_PATH=$ROCM_PATH:$MIGRAPHX_DIR"
+            echo "LD_LIBRARY_PATH=$MIGRAPHX_DIR/lib:$ROCM_PATH/lib:$ROCM_PATH/lib64:$GCC_ROOT/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+          else
+            echo "CMAKE_PREFIX_PATH=$ROCM_PATH"
+            echo "LD_LIBRARY_PATH=$ROCM_PATH/lib:$ROCM_PATH/lib64:$GCC_ROOT/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+          fi
         } >> "$GITHUB_ENV"

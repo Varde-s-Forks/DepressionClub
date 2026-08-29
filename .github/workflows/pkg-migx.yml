@@ -36,10 +36,16 @@ on:
         description: ROCm version for Linux
         type: string
         required: false
-        default: "7.14.0" # renovate: datasource=custom.rocm-linux depName=rocm-linux
+        default: "10.0.0" # renovate: datasource=custom.rocm-linux depName=rocm-linux
+      migraphx-version:
+        description: MIGraphX version for Linux
+        type: string
+        required: false
+        default: "2.17.0" # renovate: datasource=custom.migraphx-linux depName=migraphx-linux
 
 env:
-  HIP_LINUX: ${{ inputs.hip-linux || '7.14.0' }} # renovate: datasource=custom.rocm-linux depName=rocm-linux
+  HIP_LINUX: ${{ inputs.hip-linux || '10.0.0' }} # renovate: datasource=custom.rocm-linux depName=rocm-linux
+  MIGRAPHX_VERSION: ${{ inputs.migraphx-version || '2.17.0' }} # renovate: datasource=custom.migraphx-linux depName=migraphx-linux
   PACKAGE_NAME: migx
 
 jobs:
@@ -74,8 +80,7 @@ jobs:
         uses: ./.github/actions/setup-hip-linux
         with:
           hip-version: ${{ env.HIP_LINUX }}
-          hip-components: libxml2, libstdc++-devel
-          rocm-components: base,runtime-devel,llvm,blas-devel,hipblas-common-devel,dnn-devel
+          migraphx-version: ${{ env.MIGRAPHX_VERSION }}
           install-migraphx: true
 
       - name: Build wheels

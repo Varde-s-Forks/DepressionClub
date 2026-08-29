@@ -30,7 +30,7 @@ runs:
       run: |
         $archive = "therock-dist-windows-multiarch-${{ inputs.hip-version }}.tar.gz"
         $archivePath = Join-Path $env:RUNNER_TEMP $archive
-        curl.exe --fail --location --retry 3 --output $archivePath "https://repo.amd.com/rocm/tarball-multi-arch/$archive"
+        curl.exe --fail --location --retry 3 --output $archivePath "https://stable.repo.amd.com/rocm/core/tarball/$archive"
 
     - name: Extract TheRock SDK
       if: steps.cache-hip.outputs.cache-hit != 'true'

@@ -55,17 +55,24 @@
       "transformTemplates": ["{\"releases\": [{\"version\": $.mac}]}"]
     },
     "rocm-linux": {
-      "defaultRegistryUrlTemplate": "https://repo.amd.com/rocm/tarball-multi-arch/",
+      "defaultRegistryUrlTemplate": "https://stable.repo.amd.com/rocm/core/tarball/",
       "format": "plain",
       "transformTemplates": [
         "{\"releases\": [releases.$match(version, /therock-dist-linux-multiarch-([0-9]+\\.[0-9]+\\.[0-9]+)\\.tar\\.gz/).{\"version\": groups[0]}]}"
       ]
     },
     "rocm-windows": {
-      "defaultRegistryUrlTemplate": "https://repo.amd.com/rocm/tarball-multi-arch/",
+      "defaultRegistryUrlTemplate": "https://stable.repo.amd.com/rocm/core/tarball/",
       "format": "plain",
       "transformTemplates": [
         "{\"releases\": [releases.$match(version, /therock-dist-windows-multiarch-([0-9]+\\.[0-9]+\\.[0-9]+)\\.tar\\.gz/).{\"version\": groups[0]}]}"
+      ]
+    },
+    "migraphx-linux": {
+      "defaultRegistryUrlTemplate": "https://stable.repo.amd.com/rocm/migraphx/tarball/",
+      "format": "plain",
+      "transformTemplates": [
+        "{\"releases\": [releases.$match(version, /migraphx-([0-9]+\\.[0-9]+\\.[0-9]+)\\+rocm.*\\.tar\\.gz/).{\"version\": groups[0]}]}"
       ]
     },
     "nvidia-tensorrt-rhel8-cuda13-3": {
