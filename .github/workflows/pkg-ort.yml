@@ -182,6 +182,8 @@ jobs:
           $before = (Get-PSDrive C).Free
           Write-Host ("=== Available storage before: {0:N2} GiB ===" -f ($before / 1GB))
 
+          $empty = New-Item -ItemType Directory -Path "$env:TEMP\empty_dir" -Force
+
           $dirs = @(
             "${env:ProgramFiles(x86)}\Android",
             "C:\vcpkg",
@@ -192,9 +194,13 @@ jobs:
           foreach ($dir in $dirs) {
             if (Test-Path $dir) {
               Write-Host "Removing $dir..."
+              robocopy $empty.FullName $dir /mir /r:0 /w:0 /nfl /ndl /np /mt:32 | Out-Null
               cmd /c "rd /s /q `"$dir`"" 2>$null
+              $global:LASTEXITCODE = 0
             }
           }
+
+          Remove-Item $empty.FullName -Recurse -Force -ErrorAction SilentlyContinue
 
           $after = (Get-PSDrive C).Free
           $reclaimed = if ($after -gt $before) { $after - $before } else { 0 }
