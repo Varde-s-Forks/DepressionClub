@@ -118,9 +118,10 @@ jobs:
       - name: Repair wheel (Linux)
         if: runner.os == 'Linux'
         run: |
-          uvx auditwheel repair dist/*.whl -w repaired_wheels
+          uvx --with patchelf==0.17.2.0 auditwheel repair --strip dist/*.whl -w repaired_wheels
           rm dist/*.whl
           mv repaired_wheels/*.whl dist/
+          uvx --with "patchelf==0.17.2.0" patchelf --version
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
