@@ -118,7 +118,7 @@ jobs:
       - name: Repair wheel (Linux)
         if: runner.os == 'Linux'
         run: |
-          uvx --with patchelf auditwheel repair --strip dist/*.whl -w repaired_wheels
+          uvx auditwheel repair dist/*.whl -w repaired_wheels
           rm dist/*.whl
           mv repaired_wheels/*.whl dist/
 
